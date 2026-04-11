@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>英文每日練習</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:sans-serif;font-size:16px;padding:16px;max-width:480px;margin:0 auto;background:#fff;color:#222}
+h2{font-size:18px;font-weight:500;margin-bottom:16px}
+.row{margin:16px 0}
+.label{display:block;margin-bottom:6px;font-size:15px}
+.inputs{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+input{width:130px;padding:8px 10px;border:1px solid #bbb;border-radius:8px;font-size:15px;-webkit-appearance:none}
+input.correct{border-color:#1D9E75;background:#E1F5EE;color:#085041}
+input.wrong{border-color:#E24B4A;background:#FCEBEB;color:#501313}
+.ans{font-size:13px;margin-top:5px;color:#c00;font-weight:500;min-height:18px}
+button{display:block;width:100%;padding:12px;margin-top:20px;border:1px solid #bbb;border-radius:8px;background:#fff;font-size:16px;cursor:pointer}
+button:active{background:#f0f0f0}
+#score{font-size:17px;font-weight:500;margin-top:14px;color:#c00}
+</style>
+</head>
+<body>
+<h2>英文每日練習</h2>
+<div id="quiz"></div>
+<button id="btn" onclick="submit()">送出</button>
+<div id="score"></div>
+<script>
+const verbs=[
+['cry','cried'],['enjoy','enjoyed'],['use','used'],['join','joined'],['watch','watched'],
+['hurry','hurried'],['want','wanted'],['play','played'],['study','studied'],['paint','painted'],
+['change','changed'],['be','was/were'],['blow','blew'],['build','built'],['can','could'],
+['come','came'],['do','did'],['draw','drew'],['drink','drank'],['drive','drove'],
+['eat','ate'],['fall','fell'],['ride','rode'],['run','ran'],['say','said'],
+['see','saw'],['sell','sold'],['sing','sang'],['sit','sat'],['shake','shook'],
+['sleep','slept'],['stand','stood'],['swim','swam'],['stop','stopped'],['hike','hiked'],
+['picnic','picnicked'],['burn','burned'],['visit','visited'],['practice','practiced'],
+['climb','climbed'],['camp','camped'],['hide','hid'],['know','knew'],['lend','lent'],
+['lose','lost'],['make','made'],['meet','met'],['fight','fought'],['fly','flew'],
+['get','got'],['go','went'],['have','had'],['put','put'],['read','read'],
+['write','wrote'],['take','took'],['wake','woke'],['hurt','hurt'],['let','let'],
+['is','was'],['are','were']
+];
+const times=[
+['昨天早上','yesterday morning'],['昨天下午','yesterday afternoon'],['昨天傍晚','yesterday evening'],
+['昨天晚上','last night'],['上個月','last month'],['前天','the day before yesterday'],
+['上週三','last Wednesday'],['今天早上','this morning'],['今天下午','this afternoon'],
+['今天傍晚','this evening'],['上周末','last weekend'],['去年','last year'],
+['兩年前','two years ago'],['那時','then / at that time']
+];
+
+function shuffle(a){
+  const arr=a.slice();
+  for(let i=arr.length-1;i>0;i--){
+    const j=Math.floor(Math.random()*(i+1));
+    [arr[i],arr[j]]=[arr[j],arr[i]];
+  }
+  return arr;
+}
+
+let questions=[];
+
+function pick(){
+  questions=shuffle([
+    ...shuffle(verbs).slice(0,3).map(v=>({type:'verb',q:v[0],a:v[1]})),
+    ...shuffle(times).slice(0,2).map(t=>({type:'time',q:t[0],a:t[1]}))
+  ]);
+}
+
+function norm(s){return s.trim().toLowerCase().replace(/\s+/g,' ');}
+function isCorrect(input,answer){
+  return answer.split('/').map(norm).includes(norm(input))||norm(answer)===norm(input);
+}
+
+function render(){
+  pick();
+  document.getElementById('quiz').innerHTML=questions.map((item,i)=>{
+    if(item.a==='was/were')
+      return `<div class="row"><span class="label">${i+1}. ${item.q} → 過去式</span><div class="inputs"><input id="a${i}_1" placeholder="was"> / <input id="a${i}_2" placeholder="were"></div><div id="fb${i}" class="ans"></div></div>`;
+    const ph=item.type==='verb'?'過去式':'英文';
+    return `<div class="row"><span class="label">${i+1}. ${item.q} →</span><div class="inputs"><input id="a${i}" placeholder="${ph}"></div><div id="fb${i}" class="ans"></div></div>`;
+  }).join('');
+  document.getElementById('score').textContent='';
+  document.getElementById('btn').textContent='送出';
+  document.getElementById('btn').onclick=submit;
+}
+
+function submit(){
+  let correct=0;
+  questions.forEach((item,i)=>{
+    const fb=document.getElementById('fb'+i);
+    if(item.a==='was/were'){
+      const i1=document.getElementById('a'+i+'_1'),i2=document.getElementById('a'+i+'_2');
+      const ok1=isCorrect(i1.value,'was'),ok2=isCorrect(i2.value,'were');
+      i1.className=ok1?'correct':'wrong';
+      i2.className=ok2?'correct':'wrong';
+      if(ok1&&ok2){correct++;fb.textContent='';}
+      else fb.textContent='答案：was / were';
+    } else {
+      const inp=document.getElementById('a'+i);
+      if(isCorrect(inp.value,item.a)){correct++;inp.className='correct';fb.textContent='';}
+      else{inp.className='wrong';fb.textContent='答案：'+item.a;}
+    }
+  });
+  document.getElementById('score').textContent='得分：'+correct+' / 5';
+  document.getElementById('btn').textContent='再練一次';
+  document.getElementById('btn').onclick=render;
+}
+
+render();
+</script>
+</body>
+</html>
