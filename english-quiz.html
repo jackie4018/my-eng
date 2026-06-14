@@ -333,6 +333,11 @@ const ALIASES = {
   'N不可數':   ['N不可數','不可數'],
   '複數':      ['複數','V複數','V複'],
   '單數':      ['單數','V單數','V單'],
+  '兩個都有':  ['兩個都有','2個都有'],
+  '兩個其一':  ['兩個其一','2個其一','2個其中一個','兩個其中一個'],
+  '兩個都沒有':['兩個都沒有','2個都沒有'],
+  '一個':      ['一個','1個'],
+  '兩個':      ['兩個','2個'],
 };
 
 function norm(v){ return (v||'').trim().replace(/\s/g,''); }
@@ -344,6 +349,17 @@ function isMatch(user, correct){
 function checkAny(user, correctArr){
   return correctArr.some(c => isMatch(user, c));
 }
+
+// ── Paired noun groups (order-independent) ────
+const NOUN_PAIRS = [
+  ['all_n1','all_n2'],
+  ['most_n1','most_n2'],
+  ['alot_n1','alot_n2'],
+  ['some_n1','some_n2'],
+];
+const PAIR_MAP = {};
+NOUN_PAIRS.forEach(([a,b])=>{ PAIR_MAP[a]=b; PAIR_MAP[b]=a; });
+const PAIR_EXPECTED = ['N可數複數','N不可數'];
 
 // ── Quiz data ─────────────────────────────────
 // token types:
@@ -560,11 +576,24 @@ function closePicker(){ document.getElementById('pickerOverlay').classList.remov
 function overlayClick(e){ if(e.target===document.getElementById('pickerOverlay')) closePicker(); }
 
 // ── Submit ────────────────────────────────────
+function checkPair(idA, idB){
+  // Both slots together must cover PAIR_EXPECTED (order-free)
+  const uA = norm(userAnswers[idA]||'');
+  const uB = norm(userAnswers[idB]||'');
+  const matchA = PAIR_EXPECTED.filter(c => isMatch(uA, c));
+  const matchB = PAIR_EXPECTED.filter(c => isMatch(uB, c));
+  // Each slot matches one of the expected, and they match different ones
+  if(matchA.length===0 || matchB.length===0) return [false, false];
+  if(matchA[0] !== matchB[0]) return [true, true];
+  return [false, false]; // same answer in both slots
+}
+
 function submitQuiz(){
   graded = true;
   document.getElementById('quizCont').classList.add('graded');
 
   let total=0, correct=0;
+  const pairedDone = new Set();
 
   quizData.forEach(q => {
     let qTotal=0, qCorrect=0;
@@ -573,6 +602,26 @@ function submitQuiz(){
       row.forEach(tok => {
         if(typeof tok === 'string') return;
         const id = tok.id;
+
+        // Paired noun slot
+        if(PAIR_MAP[id] && !pairedDone.has(id)){
+          const partnerId = PAIR_MAP[id];
+          pairedDone.add(id); pairedDone.add(partnerId);
+          const [okA, okB] = checkPair(id, partnerId);
+
+          [id, partnerId].forEach((sid, i) => {
+            const ok = i===0 ? okA : okB;
+            total++; qTotal++;
+            if(ok){ correct++; qCorrect++; }
+            const el = document.getElementById('slot-'+sid);
+            const hint = document.getElementById('hint-'+sid);
+            if(el){ el.classList.remove('filled'); el.classList.add(ok ? 'correct' : 'wrong'); }
+            if(hint && !ok){ hint.textContent = '→ N可數複數 或 N不可數'; }
+          });
+          return;
+        }
+        if(pairedDone.has(id)) return;
+
         const correctArr = ANSWERS[id];
         const user = (userAnswers[id]||'').trim();
         const ok = correctArr.some(c => isMatch(user, c));
