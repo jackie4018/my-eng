@@ -499,6 +499,10 @@ function renderQuiz(){
       const rowEl = document.createElement('div');
       rowEl.className = 'row';
 
+      // Detect paired row
+      const _firstSlot = row.find(t => typeof t !== 'string');
+      const _isPaired = _firstSlot && PAIR_MAP[_firstSlot.id];
+
       row.forEach(tok => {
         if(typeof tok === 'string'){
           const s = document.createElement('span');
@@ -506,7 +510,6 @@ function renderQuiz(){
           s.textContent = tok;
           rowEl.appendChild(s);
         } else if(tok.type === 't'){
-          // text input
           const inp = document.createElement('input');
           inp.type = 'text';
           inp.className = 'slot-input';
@@ -517,13 +520,11 @@ function renderQuiz(){
           if(tok.id === 'ev_one') inp.style.width = '50px';
           inp.addEventListener('input', () => { userAnswers[tok.id] = inp.value; });
           rowEl.appendChild(inp);
-
           const hint = document.createElement('span');
           hint.className = 'answer-hint';
           hint.id = 'hint-'+tok.id;
           rowEl.appendChild(hint);
         } else {
-          // chip slot (noun or verb)
           const opts = tok.type === 'n' ? NOUN_OPTS : VERB_OPTS;
           const btn = document.createElement('button');
           btn.className = 'slot';
@@ -533,13 +534,13 @@ function renderQuiz(){
           btn.textContent = '選擇';
           btn.addEventListener('click', () => { if(!graded) openPicker(tok.id, opts); });
           rowEl.appendChild(btn);
-
           const hint = document.createElement('span');
           hint.className = 'answer-hint';
           hint.id = 'hint-'+tok.id;
           rowEl.appendChild(hint);
         }
       });
+
 
       card.appendChild(rowEl);
     });
@@ -578,14 +579,17 @@ function overlayClick(e){ if(e.target===document.getElementById('pickerOverlay')
 // ── Submit ────────────────────────────────────
 function checkPair(idA, idB){
   // Both slots together must cover PAIR_EXPECTED (order-free)
+  // Each slot just needs to match ANY of the expected values,
+  // and together the two slots must cover all expected values.
   const uA = norm(userAnswers[idA]||'');
   const uB = norm(userAnswers[idB]||'');
-  const matchA = PAIR_EXPECTED.filter(c => isMatch(uA, c));
-  const matchB = PAIR_EXPECTED.filter(c => isMatch(uB, c));
-  // Each slot matches one of the expected, and they match different ones
-  if(matchA.length===0 || matchB.length===0) return [false, false];
-  if(matchA[0] !== matchB[0]) return [true, true];
-  return [false, false]; // same answer in both slots
+  // Find which expected answer each slot matches
+  const matchedA = PAIR_EXPECTED.find(c => isMatch(uA, c));
+  const matchedB = PAIR_EXPECTED.find(c => isMatch(uB, c));
+  // Both must match something, and they must match different expected values
+  if(!matchedA || !matchedB) return [false, false];
+  if(matchedA !== matchedB) return [true, true];
+  return [false, false]; // both matched the same expected value
 }
 
 function submitQuiz(){
@@ -603,20 +607,30 @@ function submitQuiz(){
         if(typeof tok === 'string') return;
         const id = tok.id;
 
-        // Paired noun slot
+        // Paired noun slot — each slot graded independently, order-free
         if(PAIR_MAP[id] && !pairedDone.has(id)){
           const partnerId = PAIR_MAP[id];
           pairedDone.add(id); pairedDone.add(partnerId);
-          const [okA, okB] = checkPair(id, partnerId);
 
-          [id, partnerId].forEach((sid, i) => {
-            const ok = i===0 ? okA : okB;
+          const uA = norm(userAnswers[id]||'');
+          const uB = norm(userAnswers[partnerId]||'');
+          const matchedA = PAIR_EXPECTED.find(c => isMatch(uA, c));
+          const matchedB = PAIR_EXPECTED.find(c => isMatch(uB, c));
+
+          const okA = matchedA ? (matchedA !== matchedB ? true : false) : false;
+          const okB = matchedB ? (matchedB !== matchedA ? true : false) : false;
+
+          [[id, okA, matchedA, matchedB], [partnerId, okB, matchedB, matchedA]].forEach(([sid, ok, myMatch, otherMatch]) => {
             total++; qTotal++;
             if(ok){ correct++; qCorrect++; }
             const el = document.getElementById('slot-'+sid);
-            const hint = document.getElementById('hint-'+sid);
             if(el){ el.classList.remove('filled'); el.classList.add(ok ? 'correct' : 'wrong'); }
-            if(hint && !ok){ hint.textContent = '→ N可數複數 或 N不可數'; }
+            const hint = document.getElementById('hint-'+sid);
+            if(hint && !ok){
+              // Show the correct answer for this slot (the one not taken by the other slot)
+              const correctForThis = PAIR_EXPECTED.find(c => c !== otherMatch) || PAIR_EXPECTED.find(c => c !== myMatch);
+              hint.textContent = '→ ' + (correctForThis || PAIR_EXPECTED.join(' / '));
+            }
           });
           return;
         }
